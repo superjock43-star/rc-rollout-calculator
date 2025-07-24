@@ -1,0 +1,212 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RC Rollout Calculator</title>
+  <style>
+    body { font-family: sans-serif; background: white; color: #111; margin: 0; padding: 0; }
+    .container { max-width: 28rem; margin: auto; padding: 1rem; }
+    .flex { display: flex; }
+    .gap-2 { gap: 0.5rem; }
+    .items-center { align-items: center; }
+    .text-center { text-align: center; }
+    .rounded-lg { border-radius: 0.5rem; }
+    .border { border: 1px solid #ccc; }
+    .p-3 { padding: 0.75rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .text-primary { color: #5D5CDE; }
+    .bg-gray-100 { background-color: #f3f4f6; }
+    .dark { background-color: #111827; color: white; }
+    input[type="text"] { padding: 0.5rem; border: 1px solid #ccc; border-radius: 0.5rem; width: 100%; }
+    button { padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 0.5rem; background: #f9f9f9; cursor: pointer; }
+    .hidden { display: none; }
+    .mode-btn.active { background-color: #5D5CDE; color: white; }
+    .btn-group { display: flex; }
+    .btn-group button { width: 2.5rem; }
+    .btn-group input { text-align: center; max-width: 4rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="text-center mb-4">
+      <h1 class="text-xl font-bold">RC Rollout Calculator</h1>
+    </div><div class="flex gap-2 mb-4">
+  <button id="standardModeBtn" class="mode-btn active">Calculate Rollout</button>
+  <button id="reverseModeBtn" class="mode-btn">Calculate Pinion</button>
+</div>
+
+<div class="mb-4">
+  <label>Tyre Diameter (mm)</label>
+  <div class="flex gap-2 items-center">
+    <input type="text" id="tyreDiameter" inputmode="decimal" value="42.5">
+    <button id="tyreLock">🔓</button>
+  </div>
+</div>
+
+<div class="mb-4">
+  <label>Spur Gear (Teeth)</label>
+  <div class="flex gap-2 items-center">
+    <div class="btn-group">
+      <button id="spurDown">−</button>
+      <input type="text" id="spurGear" inputmode="numeric" value="87">
+      <button id="spurUp">+</button>
+    </div>
+    <button id="spurLock">🔓</button>
+  </div>
+</div>
+
+<div id="pinionSection" class="mb-4">
+  <label>Pinion Gear (Teeth)</label>
+  <div class="btn-group">
+    <button id="pinionDown">−</button>
+    <input type="text" id="pinionGear" inputmode="numeric" value="25">
+    <button id="pinionUp">+</button>
+  </div>
+</div>
+
+<div id="rolloutSection" class="mb-4 hidden">
+  <label>Desired Rollout (mm)</label>
+  <input type="text" id="desiredRollout" inputmode="decimal" value="38.0">
+</div>
+
+<div class="border p-3 rounded-lg text-center">
+  <div id="standardResult">
+    <h3>Calculated Rollout</h3>
+    <div id="rolloutValue" class="text-primary text-2xl">--</div>
+  </div>
+  <div id="reverseResult" class="hidden">
+    <h3>Suggested Pinion</h3>
+    <div id="suggestedPinion" class="text-primary text-2xl">--</div>
+    <div id="actualRollout">Actual rollout: -- mm</div>
+  </div>
+</div>
+
+<div class="text-center mt-4">
+  <button id="resetBtn">Reset All Values</button>
+</div>
+
+  </div> <script>
+    const appState = {
+      mode: 'standard',
+      locks: { tyre: false, spur: false },
+      values: {
+        tyreDiameter: 42.5,
+        spurGear: 87,
+        pinionGear: 25,
+        desiredRollout: 38.0
+      }
+    };
+
+    const el = id => document.getElementById(id);
+
+    function calculateRollout(tyre, spur, pinion) {
+      return (tyre * Math.PI) / (spur / pinion);
+    }
+
+    function findClosestPinion(tyre, spur, desired) {
+      let best = 10, diff = Infinity;
+      for (let p = 10; p <= 80; p++) {
+        const r = calculateRollout(tyre, spur, p);
+        const d = Math.abs(r - desired);
+        if (d < diff) { diff = d; best = p; }
+      }
+      return best;
+    }
+
+    function updateLockStates() {
+      el('tyreLock').textContent = appState.locks.tyre ? '🔒' : '🔓';
+      el('spurLock').textContent = appState.locks.spur ? '🔒' : '🔓';
+      el('tyreDiameter').disabled = appState.locks.tyre;
+      el('spurGear').disabled = appState.locks.spur;
+    }
+
+    function updateUI() {
+      const vals = appState.values;
+      el('tyreDiameter').value = vals.tyreDiameter;
+      el('spurGear').value = vals.spurGear;
+      el('pinionGear').value = vals.pinionGear;
+      el('desiredRollout').value = vals.desiredRollout;
+
+      const isStandard = appState.mode === 'standard';
+      el('pinionSection').classList.toggle('hidden', !isStandard);
+      el('rolloutSection').classList.toggle('hidden', isStandard);
+      el('standardResult').classList.toggle('hidden', !isStandard);
+      el('reverseResult').classList.toggle('hidden', isStandard);
+      el('standardModeBtn').classList.toggle('active', isStandard);
+      el('reverseModeBtn').classList.toggle('active', !isStandard);
+
+      if (isStandard) {
+        const result = calculateRollout(vals.tyreDiameter, vals.spurGear, vals.pinionGear);
+        el('rolloutValue').textContent = result.toFixed(2);
+      } else {
+        const pinion = findClosestPinion(vals.tyreDiameter, vals.spurGear, vals.desiredRollout);
+        const actual = calculateRollout(vals.tyreDiameter, vals.spurGear, pinion);
+        el('suggestedPinion').textContent = pinion;
+        el('actualRollout').textContent = `Actual rollout: ${actual.toFixed(2)} mm`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      el('standardModeBtn').onclick = () => { appState.mode = 'standard'; updateUI(); };
+      el('reverseModeBtn').onclick = () => { appState.mode = 'reverse'; updateUI(); };
+
+      el('tyreDiameter').oninput = e => {
+        const val = parseFloat(e.target.value.replace(',', '.'));
+        appState.values.tyreDiameter = isNaN(val) ? 0 : val;
+        updateUI();
+      };
+      el('spurGear').oninput = e => {
+        const val = parseInt(e.target.value);
+        appState.values.spurGear = isNaN(val) ? 0 : val;
+        updateUI();
+      };
+      el('pinionGear').oninput = e => {
+        const val = parseInt(e.target.value);
+        appState.values.pinionGear = isNaN(val) ? 0 : val;
+        updateUI();
+      };
+      el('desiredRollout').oninput = e => {
+        const val = parseFloat(e.target.value.replace(',', '.'));
+        appState.values.desiredRollout = isNaN(val) ? 0 : val;
+        updateUI();
+      };
+
+      el('tyreLock').onclick = () => {
+        appState.locks.tyre = !appState.locks.tyre;
+        updateLockStates();
+      };
+      el('spurLock').onclick = () => {
+        appState.locks.spur = !appState.locks.spur;
+        updateLockStates();
+      };
+
+      el('spurDown').onclick = () => {
+        appState.values.spurGear = Math.max(50, appState.values.spurGear - 1);
+        updateUI();
+      };
+      el('spurUp').onclick = () => {
+        appState.values.spurGear = Math.min(150, appState.values.spurGear + 1);
+        updateUI();
+      };
+      el('pinionDown').onclick = () => {
+        appState.values.pinionGear = Math.max(10, appState.values.pinionGear - 1);
+        updateUI();
+      };
+      el('pinionUp').onclick = () => {
+        appState.values.pinionGear = Math.min(80, appState.values.pinionGear + 1);
+        updateUI();
+      };
+
+      el('resetBtn').onclick = () => {
+        appState.mode = 'standard';
+        appState.locks = { tyre: false, spur: false };
+        appState.values = { tyreDiameter: 42.5, spurGear: 87, pinionGear: 25, desiredRollout: 38.0 };
+        updateLockStates();
+        updateUI();
+      };
+
+      updateLockStates();
+      updateUI();
+    });
+  </script></body>
+</html>
